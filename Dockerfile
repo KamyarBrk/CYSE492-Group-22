@@ -11,3 +11,10 @@ WORKDIR /workspace
 # Install Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install openai langchain python-dotenv
+
+#Install git deps
+FROM ubuntu:latest
+
+RUN apt-get update -y && \
+    apt-get install -y git
