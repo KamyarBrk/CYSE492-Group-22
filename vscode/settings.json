@@ -2,9 +2,6 @@
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     "python.terminal.activateEnvironment": true,
 
-    // Auto-run setup task when VS Code opens the workspace
-    "task.allowAutomaticTasks": "on",
-    "tasks.runOnFolderOpen": [
-        "Setup Python Environment"
-    ]
+    // Allow auto tasks
+    "task.allowAutomaticTasks": "on"
 }

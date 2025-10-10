@@ -15,7 +15,10 @@
                 "reveal": "always",
                 "panel": "shared"
             },
-            "problemMatcher": []
+            "problemMatcher": [],
+            "runOptions": {
+                "runOn": "folderOpen"   // 👈 this is important!
+            }
         }
     ]
 }
