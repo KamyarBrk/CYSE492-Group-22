@@ -1,19 +1,16 @@
 <#
 .SYNOPSIS
-  Create a Python virtual environment and install dependencies from requirements.txt,
-  and (optionally) activate it automatically.
+  Create a Python virtual environment and install dependencies from requirements.txt.
 
-.USAGE
-  Dot-source to create AND keep the venv activated in your current session:
-    . .\setup.ps1
-
-  Run normally and open a new PowerShell window WITH the activated venv:
-    .\setup.ps1 -AutoOpenTerminal
-
-PARAMS
-  -VenvDir (default ".venv")
-  -AutoOpenTerminal : open a new PowerShell window with the venv activated (useful if you didn't dot-source)
-  -MinPythonVersion / -MaxPythonVersion for version enforcement
+.DESCRIPTION
+  - Default venv dir: .venv
+  - Default minimum Python version: 3.10 (configurable)
+  - Default maximum Python version: 3.12 (configurable) — script will refuse Python newer than 3.12.
+  - Attempts "python" then "python3" if needed.
+  - To keep the virtualenv activated in your current PowerShell session, dot-source this script:
+      . .\setup.ps1
+  - If scripts are blocked: run (non-persistently)
+      powershell -ExecutionPolicy Bypass -File .\setup.ps1
 #>
 
 param(
@@ -21,8 +18,7 @@ param(
     [string]$PythonExe = "python",
     [string]$RequirementsFile = "requirements.txt",
     [Version]$MinPythonVersion = "3.10.0",
-    [Version]$MaxPythonVersion = "3.12.8",
-    [switch]$AutoOpenTerminal
+    [Version]$MaxPythonVersion = "3.12.8"
 )
 
 function Write-ErrorAndExit($msg, [int]$code = 1) {
@@ -30,10 +26,6 @@ function Write-ErrorAndExit($msg, [int]$code = 1) {
     Write-Host "ERROR: $msg" -ForegroundColor Red
     exit $code
 }
-
-# Detect if script was dot-sourced (then activation can change the caller's session)
-$dotSourced = $false
-if ($MyInvocation.InvocationName -eq '.') { $dotSourced = $true }
 
 Write-Host "== Setup script starting =="
 
@@ -93,9 +85,10 @@ if ($venvPath) {
     Write-Host "Virtual environment created."
 }
 
-# Determine python executable inside venv
+# Determine python executable inside venv (Windows style)
 $venvPython = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
+    # Fallback: try tools for non-Windows users (Scripts -> bin)
     $venvPython = Join-Path $VenvDir "bin/python"
 }
 
@@ -120,34 +113,19 @@ Write-Host ""
 Write-Host "== Success! Dependencies installed. ==" -ForegroundColor Green
 Write-Host ""
 
-# Activation handling
-$activatePs1 = Join-Path $VenvDir "Scripts\Activate.ps1"
-$activatePs1Unix = Join-Path $VenvDir "bin/activate"
+# Activation instructions
+$activatePath = Join-Path $VenvDir "Scripts\Activate.ps1"
+$activatePathUnix = Join-Path $VenvDir "bin/activate"
 
-if (Test-Path $activatePs1) {
-    if ($dotSourced) {
-        Write-Host "Dot-sourced run detected — activating venv in current session..."
-        . $activatePs1
-        Write-Host "Activated. (Run 'deactivate' to exit the venv.)" -ForegroundColor Green
-    } elseif ($AutoOpenTerminal) {
-        Write-Host "Opening a new PowerShell window with the venv activated..."
-        # Start a new PowerShell window that sources the Activate.ps1 and stays open
-        $actPathFull = (Resolve-Path $activatePs1).Path
-        Start-Process -FilePath "powershell" -ArgumentList "-NoExit", "-Command", ". `"$actPathFull`""
-        Write-Host "New PowerShell window started and activated." -ForegroundColor Green
-    } else {
-        Write-Host "To activate the virtual environment in this session, run (one line):" -ForegroundColor Cyan
-        Write-Host "  . $PWD\$activatePs1" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "Or run this script by dot-sourcing to auto-activate:" -ForegroundColor Yellow
-        Write-Host "  . .\\setup.ps1" -ForegroundColor Yellow
-    }
-} elseif (Test-Path $activatePs1Unix) {
-    Write-Host "For Unix shells, activate with:" -ForegroundColor Cyan
-    Write-Host "  source $PWD/$activatePs1Unix" -ForegroundColor Cyan
-} else {
-    Write-Host "Activation script not found — you can still use $venvPython directly." -ForegroundColor Yellow
-}
+Write-Host "To activate the virtual environment in PowerShell (current session), run:"
+Write-Host "  . $PWD\$activatePath" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "If you prefer cmd.exe:"
+Write-Host "  $PWD\$VenvDir\Scripts\activate.bat" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "In Git Bash or WSL:"
+Write-Host "  source $PWD/$activatePathUnix" -ForegroundColor Cyan
+Write-Host ""
 
 Write-Host ""
 Write-Host "Notes:"
