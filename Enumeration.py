@@ -10,7 +10,7 @@ prompt = ChatPromptTemplate.from_template(
     "\nQuestion: {question}\nAnswer:"
 )
 
-
+# The LLM model chosen 
 enum = OllamaLLM(model="gemma3:4b")
 
 llm_chain = prompt | enum | StrOutputParser()
