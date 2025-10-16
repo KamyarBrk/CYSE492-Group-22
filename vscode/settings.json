@@ -1,6 +1,16 @@
+
 {
+  // Windows users (VS Code will use this interpreter automatically)
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+
+  // Auto-activate the selected interpreter in new integrated terminals
   "python.terminal.activateEnvironment": true,
+
+  // If some contributors are on macOS/Linux, they can add this override in their local user settings,
+  // or edit this file to the unix path: "${workspaceFolder}/.venv/bin/python"
+  //
+  // Note: older VS Code versions used "python.pythonPath" — modern Python extension prefers defaultInterpreterPath.
+
   "python.analysis.autoImportCompletions": true,
   "python.linting.enabled": true,
   "python.testing.unittestEnabled": false,
