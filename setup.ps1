@@ -18,7 +18,7 @@ param(
     [string]$PythonExe = "python",
     [string]$RequirementsFile = "requirements.txt",
     [Version]$MinPythonVersion = "3.10.0",
-    [Version]$MaxPythonVersion = "3.12.0"
+    [Version]$MaxPythonVersion = "3.12.8"
 )
 
 function Write-ErrorAndExit($msg, [int]$code = 1) {
