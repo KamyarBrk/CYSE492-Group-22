@@ -1,59 +1,53 @@
-
+from typing import TypedDict, List
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.graph import START, StateGraph
-from langgraph.checkpoint.memory import InMemorySaver
-from typing import TypedDict
+from langgraph.checkpoint.memory import MemorySaver  # <- use MemorySaver
+# pip install -U langgraph if needed
 
+# ----- State -----
+class State(TypedDict, total=False):
+    question: str
+    history: List[str]   # simple running log
+    answer: str
 
-class State(TypedDict):
-    foo: str
-
-# Subgraph
-
-def subgraph_node_1(state: State):
-    return {"foo": state["foo"] + "bar"}
-
+# ----- LLM chain -----
 prompt = ChatPromptTemplate.from_template(
-    "You are an AI model that performs the enumeration phase of a penetration test."
-    "\nQuestion: {question}\nAnswer:"
+    "You are an AI model that performs the enumeration phase of a penetration test.\n"
+    "Conversation so far:\n{history}\n"
+    "Question: {question}\nAnswer:"
 )
-
-# The LLM model chosen 
-enum = OllamaLLM(model="gemma3:4b")
-
+enum = OllamaLLM(model="gemma3:1b")
 llm_chain = prompt | enum | StrOutputParser()
 
-def query_llm(question): 
-    print(llm_chain.invoke({'question': question})) 
+# ----- Node(s) -----
+def enum_node(state: State) -> State:
+    hist_str = "\n".join(state.get("history", []))
+    ans = llm_chain.invoke({"question": state["question"], "history": hist_str})
+    new_hist = state.get("history", []) + [f"Q: {state['question']}", f"A: {ans}"]
+    return {"answer": ans, "history": new_hist}
 
-# --- ENUMERATION START ---
+# ----- Graph -----
+builder = StateGraph(State)
+builder.add_node("enumerate", enum_node)
+builder.add_edge(START, "enumerate")
+
+checkpointer = MemorySaver()
+graph = builder.compile(checkpointer=checkpointer)
 
 print("Welcome to the Enumeration Phase")
-
-subgraph_builder = StateGraph(State)
-subgraph_builder.add_node(subgraph_node_1)
-subgraph_builder.add_edge(START, "subgraph_node_1")
-subgraph = subgraph_builder.compile()  
-
-# Parent graph
-
-builder = StateGraph(State)
-builder.add_node("node_1", subgraph)  
-builder.add_edge(START, "node_1")
-
-checkpointer = InMemorySaver()
-graph = builder.compile(checkpointer=checkpointer)  
+THREAD_ID = "enum-session-1"  # anything stable per session
 
 while True:
-# Gets user input
     user = input("Enter-> ")
-# If user enters 'exit' then the model is not queried and the program terminates. 
     if user.lower() == "exit":
-        print('Goodbye!')
+        print("Goodbye!")
         break
-# Queries the LLM with user input
-    query_llm(user)
 
-
+    # Each turn we pass the new question; prior state is restored via thread_id.
+    result = graph.invoke(
+        {"question": user}, 
+        config={"configurable": {"thread_id": THREAD_ID}}
+    )
+    print(result["answer"])
