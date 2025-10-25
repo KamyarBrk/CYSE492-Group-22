@@ -7,17 +7,25 @@ from langgraph.checkpoint.memory import MemorySaver  # <- use MemorySaver
 # pip install -U langgraph if needed
 
 # ----- State -----
+
+# This is a dictionary that contains everything that is passed to the AI
 class State(TypedDict, total=False):
+# The user's question
     question: str
-    history: List[str]   # simple running log
+# The conversation history so far (simple running log)
+    history: List[str]
+# The AI's latest answer
     answer: str
 
 # ----- LLM chain -----
+
+# Prompt given to AI every time it is queried (asked a question)
 prompt = ChatPromptTemplate.from_template(
     "You are an AI model that performs the enumeration phase of a penetration test.\n"
     "Conversation so far:\n{history}\n"
     "Question: {question}\nAnswer:"
 )
+
 enum = OllamaLLM(model="gemma3:1b")
 llm_chain = prompt | enum | StrOutputParser()
 
@@ -35,6 +43,9 @@ builder.add_edge(START, "enumerate")
 
 checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
+
+
+# ----- SESSION START -----
 
 print("Welcome to the Enumeration Phase")
 THREAD_ID = "enum-session-1"  # anything stable per session
