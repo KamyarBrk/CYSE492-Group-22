@@ -5,9 +5,11 @@ from langchain_core.output_parsers import StrOutputParser
 from langgraph.graph import START, StateGraph
 from langgraph.checkpoint.memory import MemorySaver  # <- use MemorySaver
 # pip install -U langgraph if needed
+import subprocess
+import sys
 
 # ----- State -----
-class State(TypedDict, total=False):
+class State(TypedDict, total=False): 
     question: str
     history: List[str]   # simple running log
     answer: str
@@ -18,7 +20,43 @@ prompt = ChatPromptTemplate.from_template(
     "Conversation so far:\n{history}\n"
     "Question: {question}\nAnswer:"
 )
-enum = OllamaLLM(model="gemma3:1b")
+
+def select_model_func():
+    proc = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=True)
+
+    # Extract model names
+    installed_models = []
+    for line in proc.stdout.splitlines():
+        if line.strip():
+            # Get model name before ':' (e.g., "gamma:latest" -> "gamma")
+            model_name = line.split()[0]
+            installed_models.append(model_name)
+    
+    print("Select a model for enumeration phase:")
+    print("1: gemma3:1b\n2: gemma3:4b\n3: gemma3:12b\n4: gemma3:27b\n5: gpt-oss:20b")
+    model_dict = {
+        1: "gemma3:1b",
+        2: "gemma3:4b",
+        3: "gemma3:12b",
+        4: "gemma3:27b",
+        5: "gpt-oss:20b"
+    }
+    model_option = int(input("Enter model option->  "))
+    while model_dict[model_option] not in installed_models:
+        print("The selected model is not available. Please choose from the list above.")
+        print(f"Installed Models:{installed_models[1:]}")
+        model_option = int(input("Enter model option->  "))
+    selected_model=None
+    for k,v in model_dict.items():
+        if model_option==k:
+            selected_model=v
+            break
+
+    print(f"Selected model: {selected_model}")
+    return selected_model
+
+selected_model=select_model_func()
+enum = OllamaLLM(model=selected_model, temperature=0.3)
 llm_chain = prompt | enum | StrOutputParser()
 
 # ----- Node(s) -----
@@ -46,8 +84,11 @@ while True:
         break
 
     # Each turn we pass the new question; prior state is restored via thread_id.
-    result = graph.invoke(
-        {"question": user}, 
-        config={"configurable": {"thread_id": THREAD_ID}}
-    )
-    print(result["answer"])
+    try:
+        result = graph.invoke(
+            {"question": user}, 
+            config={"configurable": {"thread_id": THREAD_ID}}
+        )
+        print(result["answer"])
+    except Exception as e:
+        print(f"Error during invocation: {e}")
