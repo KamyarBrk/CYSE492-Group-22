@@ -119,6 +119,7 @@ while True:
         )
         # Print the AI's answer
         print(result["answer"])
+    
     except Exception as e:
         # Catch and display any errors in invocation
         print(f"Error during invocation: {e}")
