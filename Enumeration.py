@@ -41,10 +41,6 @@ def select_model_func():
             model_name = line.split()[0]
             installed_models.append(model_name)
     
-    # Show user a predefined list of models to choose from
-    print("Select a model for enumeration phase:")
-    print("1: gemma3:1b\n2: gemma3:4b\n3: gemma3:12b\n4: gemma3:27b\n5: gpt-oss:20b")
-    
     # Map user input number to actual model names
     model_dict = {
         1: "gemma3:1b",
@@ -54,14 +50,29 @@ def select_model_func():
         5: "gpt-oss:20b"
     }
     
-    # Ask the user for their selection
-    model_option = int(input("Enter model option->  "))
-    
-    # Check if selected model is installed
-    while model_dict[model_option] not in installed_models:
-        print("The selected model is not available. Please choose from the list above.")
-        print(f"Installed Models:{installed_models[1:]}")
-        model_option = int(input("Enter model option->  "))
+    while True:
+        # Show user a predefined list of models to choose from
+        print("Select a model for enumeration phase:")
+        print("1: gemma3:1b\n2: gemma3:4b\n3: gemma3:12b\n4: gemma3:27b\n5: gpt-oss:20b")
+        try:
+            # Ask the user for their selection
+            model_option = input("Enter model option -> ")
+            if model_option.lower() == "exit":
+                print("Goodbye!")
+                exit()
+            model_option = int(model_option)
+
+            if not model_option in model_dict:
+                raise
+            else:
+                # Check if selected model is installed
+                while model_dict[model_option] not in installed_models:
+                    print("The selected model is not available. Please choose from the list above.")
+                    print(f"Installed Models: {installed_models[1:]}")
+                    model_option = int(input("Enter model option-> "))
+                break
+        except Exception:
+            print("What you entered was invalid. Please enter a valid number.")
     
     # Assign selected model
     selected_model = None
@@ -116,20 +127,19 @@ THREAD_ID = "enum-session-1"  # stable identifier for session/thread
 
 # Main interactive loop
 while True:
-    user = input("Enter-> ")
-    if user.lower() == "exit":
+    user_input = input("Enter -> ")
+    if user_input.lower() == "exit":
         print("Goodbye!")
-        break
+        exit()
 
     # Pass the new question to the graph; prior state restored via thread_id
     try:
         result = graph.invoke(
-            {"question": user}, 
+            {"question": user_input}, 
             config={"configurable": {"thread_id": THREAD_ID}}
         )
         # Print the AI's answer
         print(result["answer"])
-    
     except Exception as e:
         # Catch any errors during invocation
         print(f"Error during invocation: {e}")
