@@ -10,6 +10,8 @@ import subprocess
 import json
 from pathlib import Path
 
+#TODO: Make it so that enumeration_memory.json clears after terminating session
+
 # --- Simple file-backed conversation memory settings ---
 MEMORY_FILE = Path("enumeration_memory.json")
 MAX_MEMORY_MESSAGES = 200  # keep only the last N messages to avoid unbounded growth
