@@ -46,12 +46,12 @@ def commands(command: str):
 
 tools = [add, sub, mult, commands]
 
-llm = ChatOllama(model="llama3.1:8b").bind_tools(tools)
+llm = ChatOllama(model="gpt-oss:20b").bind_tools(tools)
 
 
 def recon_call(state:AgentState) -> AgentState:
     system_prompt = SystemMessage(content=
-                "You are an AI assistant that is designed to autonimously carry out the recon phase of a cybersecurity penetration test for a windows computer with a user named Paul Dean"
+                "You are an AI assistant that is designed to autonimously carry out the recon phase of a cybersecurity penetration test for a windows computer using powershell commands"
                 )
     response = llm.invoke([system_prompt] + state["messages"])
     return {"messages": [response]}
@@ -87,7 +87,7 @@ graph.add_edge("tools", "recon_agent")
 
 recon = graph.compile()
 
-#conversation_history = []
+
 
 def print_stream(stream):
     for s in stream:
@@ -99,20 +99,7 @@ def print_stream(stream):
 
 user_input = input("Enter: ")
 while user_input != 'exit':
-    #conversation_history.append(HumanMessage(content=user_input))
+
     result = print_stream(recon.stream({"messages": user_input}, stream_mode="values"))
-    #conversation_history = result["messages"]
     user_input = input("Enter: ")
-    
 
-'''with open("logging.txt", "w") as file:
-    #file.write("Your Converstion Log:\n")
-
-    for message in conversation_history:
-        if isinstance(message, HumanMessage):
-            file.write(f"You: {message.content}\n")
-        elif isinstance(message, AIMessage):
-            file.write(f"AI {message.content}\n\n")
-    file.write('End of Converstion')
-
-print("Converstation saved to logging.txt")'''
