@@ -1,48 +1,112 @@
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from typing import TypedDict, List, Union
+from typing import TypedDict, List, Union, Annotated, Sequence
+from langchain_core.messages import BaseMessage, ToolMessage, SystemMessage
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain_ollama import OllamaLLM
+from langchain_core.tools import tool
+from langchain_ollama import ChatOllama
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, START, END
+import subprocess
+
+
 
 
 class AgentState(TypedDict):
-    messages : List[Union[HumanMessage, AIMessage]]
+    messages : Annotated[Sequence[BaseMessage], add_messages]
 
 
-Reco = OllamaLLM(model="gemma3:1b")
+@tool
+def add(a: int, b: int):
+    """This is an addition function that adds two files together"""
+    
+    return a + b
 
-def process(state: AgentState) -> AgentState:
-    response = Reco.invoke(state["messages"])
+@tool
+def sub(a: int, b: int):
+    """Subtraction Function"""
+    return a - b
 
-    state["messages"].append(AIMessage(content=response))
-    print(f"\n {response}")
-    return state
+@tool
+def mult(a: int, b: int):
+    """Multiplication Function"""
+    return a * b
+
+@tool
+def commands(command: str):
+    """Allows the AI commands to run commands"""
+    result = subprocess.run(
+            command,
+            shell=isinstance(command, str),
+            capture_output=True,
+            text=True
+    )
+    return result.stdout.strip(), result.stderr.strip(), result.returncode
+
+
+
+tools = [add, sub, mult, commands]
+
+llm = ChatOllama(model="llama3.1:8b").bind_tools(tools)
+
+
+def recon_call(state:AgentState) -> AgentState:
+    system_prompt = SystemMessage(content=
+                "You are an AI assistant that is designed to autonimously carry out the recon phase of a cybersecurity penetration test for a windows computer with a user named Paul Dean"
+                )
+    response = llm.invoke([system_prompt] + state["messages"])
+    return {"messages": [response]}
+
+
+def should_continue(state: AgentState):
+    messages = state["messages"]
+    last_message = messages[-1]
+    if not last_message.tool_calls:
+
+        return "end"
+    else:
+        return "continue"
 
 graph = StateGraph(AgentState)
-graph.add_node("process", process)
-graph.add_edge(START, "process")
-graph.add_edge("process", END)
-agent = graph.compile()
+graph.add_node("recon_agent", recon_call)
 
-conversation_history = []
+tool_node = ToolNode(tools=tools)
+graph.add_node("tools", tool_node)
 
+graph.set_entry_point("recon_agent")
 
+graph.add_conditional_edges(
+    "recon_agent",
+    should_continue,
+    {
+        "continue": "tools",
+        "end": END,
+    },
+)
 
-#Creates the question to be asked to the model
-def query_recon_llm(question): 
-    agent.invoke({'question': question})
+graph.add_edge("tools", "recon_agent")
 
-user_input = input("Welcome to the reconnisance phase"
-"\nEnter: ")
+recon = graph.compile()
+
+#conversation_history = []
+
+def print_stream(stream):
+    for s in stream:
+        message = s["messages"][-1]
+        if isinstance(message, tuple):
+            print(message)
+        else:
+            message.pretty_print()
+
+user_input = input("Enter: ")
 while user_input != 'exit':
-    conversation_history.append(HumanMessage(content=user_input))
-    result = agent.invoke({"messages": conversation_history})
-    conversation_history = result["messages"]
+    #conversation_history.append(HumanMessage(content=user_input))
+    result = print_stream(recon.stream({"messages": user_input}, stream_mode="values"))
+    #conversation_history = result["messages"]
     user_input = input("Enter: ")
+    
 
-with open("logging.txt", "w") as file:
-    file.write("Your Converstion Log:\n")
+'''with open("logging.txt", "w") as file:
+    #file.write("Your Converstion Log:\n")
 
     for message in conversation_history:
         if isinstance(message, HumanMessage):
@@ -51,8 +115,4 @@ with open("logging.txt", "w") as file:
             file.write(f"AI {message.content}\n\n")
     file.write('End of Converstion')
 
-print("Conversation saved to logging.txt")
-
-
-
-
+print("Converstation saved to logging.txt")'''
