@@ -123,7 +123,6 @@ def select_model_func():
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-
 @tool
 def commands(command: str):
     """Allows the AI commands to run commands"""
