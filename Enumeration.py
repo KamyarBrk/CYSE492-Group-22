@@ -65,6 +65,57 @@ def load_memory(memory_file: Path = MEMORY_FILE, max_messages: int = MAX_MEMORY_
             msgs.append(HumanMessage(content=content))
     return msgs
 
+def select_model_func():
+    # Run 'ollama list' to get all installed Ollama models
+    proc = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=True)
+
+    # Extract model names from command output
+    installed_models = []
+    for line in proc.stdout.splitlines():
+        if line.strip():  # skip empty lines
+            # Get the model name (e.g., "gamma:latest" -> "gamma")
+            model_name = line.split()[0]
+            installed_models.append(model_name)
+    
+    # Map user input number to actual model names
+    model_dict = {
+        1: "llama3.2:latest",
+        2: "gpt-oss:20b"
+    }
+    
+    while True:
+        # Show user a predefined list of models to choose from
+        print("Select a model for enumeration phase:")
+        print("1: llama3.2:latest\n2: gpt-oss:20b")
+        try:
+            # Ask the user for their selection
+            model_option = input("Enter model option -> ")
+            if model_option.lower() == "exit":
+                print("Goodbye!")
+                exit()
+            model_option = int(model_option)
+
+            if not model_option in model_dict:
+                raise
+            else:
+                # Check if selected model is installed
+                while model_dict[model_option] not in installed_models:
+                    print("The selected model is not available. Please choose from the list above.")
+                    print(f"Installed Models: {installed_models[1:]}")
+                    model_option = int(input("Enter model option-> "))
+                break
+        except Exception:
+            print("What you entered was invalid. Please enter a valid number.")
+    
+    # Assign selected model
+    selected_model = None
+    for k, v in model_dict.items():
+        if model_option == k:
+            selected_model = v
+            break
+
+    print(f"Selected model: {selected_model}")
+    return selected_model
 
 # ---------------------------------------------------------------------
 # Your original tool + LLM setup
@@ -87,8 +138,7 @@ def commands(command: str):
 
 tools = [commands]
 
-llm = ChatOllama(model="gpt-oss:20b").bind_tools(tools)
-
+llm = ChatOllama(model=select_model_func()).bind_tools(tools)
 
 # ---------------------------------------------------------------------
 # enum_call now uses file-backed memory (this is the enum_call that will be
@@ -176,6 +226,8 @@ def print_stream(stream):
 
 
 if __name__ == "__main__":
+    # Open the file in write mode ('w') and dump an empty dictionary
+    open("enumeration_memory.json", 'w').close()
     user_input = input("\nEnter: ")
     while user_input != 'exit':
         # convert raw string input to a HumanMessage and pass as a single-item list
