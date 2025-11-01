@@ -87,11 +87,12 @@ def select_model_func():
     
     while True:
         # Show user a predefined list of models to choose from
-        print("Select a model for enumeration phase:")
-        print("1: llama3.2:latest\n2: gpt-oss:20b")
+        print("\nSelect a model for enumeration phase:")
+        print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (most powerful)")
+        print('')
         try:
             # Ask the user for their selection
-            model_option = input("Enter model option -> ")
+            model_option = input("Enter model option (number) -> ")
             if model_option.lower() == "exit":
                 print("Goodbye!")
                 exit()
