@@ -16,7 +16,6 @@ from pathlib import Path
 MEMORY_FILE = Path("enumeration_memory.json")
 MAX_MEMORY_MESSAGES = 200  # keep only the last N messages to avoid unbounded growth
 
-
 def _msg_role(m: BaseMessage) -> str:
     if isinstance(m, SystemMessage):
         return "system"
@@ -26,7 +25,6 @@ def _msg_role(m: BaseMessage) -> str:
         return "ai"
     # fallback for unknown BaseMessage subclasses (e.g., ToolMessage)
     return m.__class__.__name__.lower()
-
 
 def save_memory(messages: Iterable[BaseMessage], memory_file: Path = MEMORY_FILE):
     """Serialize messages to disk as a list of {role, content} dicts."""
@@ -42,7 +40,6 @@ def save_memory(messages: Iterable[BaseMessage], memory_file: Path = MEMORY_FILE
     # Trim to last MAX_MEMORY_MESSAGES to keep the file small
     out = out[-MAX_MEMORY_MESSAGES:]
     memory_file.write_text(json.dumps(out, indent=2), encoding="utf-8")
-
 
 def load_memory(memory_file: Path = MEMORY_FILE, max_messages: int = MAX_MEMORY_MESSAGES) -> List[BaseMessage]:
     """Load messages from disk and return them as BaseMessage objects (most recent last)."""
@@ -140,7 +137,6 @@ def commands(command: str):
 
 tools = [commands]
 
-llm = ChatOllama(model=select_model_func()).bind_tools(tools)
 
 # ---------------------------------------------------------------------
 # enum_call now uses file-backed memory (this is the enum_call that will be
@@ -228,8 +224,9 @@ def print_stream(stream):
 
 
 if __name__ == "__main__":
-    # Open the file in write mode ('w') and dump an empty dictionary
+    # Open the file in write mode ('w') and delete its contents
     open("enumeration_memory.json", 'w').close()
+    llm = ChatOllama(model=select_model_func()).bind_tools(tools)
     user_input = input("\nEnter: ")
     while user_input != 'exit':
         # convert raw string input to a HumanMessage and pass as a single-item list
