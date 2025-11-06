@@ -18,7 +18,7 @@ llm_chain = prompt | enum | StrOutputParser()
 def query_llm(question): 
     print(llm_chain.invoke({'question': question})) 
 
-# --- ENUMERATION START ---
+# --- ENUMERATION START! ---
 
 print("Welcome to the Enumeration Phase")
 while True:
@@ -30,5 +30,6 @@ while True:
         break
 # Queries the LLM with user input
     query_llm(user)
+
 
 
