@@ -37,15 +37,15 @@ import json
 from pathlib import Path
 
 
-#TODO: Make it so that enumeration_memory.json clears after terminating session
-
 # --- Simple file-backed conversation memory settings ---
 MEMORY_FILE = Path("enumeration_memory.json")  # Path to the file used to persist chat memory
 MAX_MEMORY_MESSAGES = 200  # Maximum number of past messages to keep to prevent file bloat
 
 # Helper function to determine message "role" string
 def _msg_role(m: BaseMessage) -> str:
-    """Return a string representing the role of a BaseMessage object."""
+    """
+    Return a string representing the role of a BaseMessage object.
+    """
     if isinstance(m, SystemMessage):  # If the message is from system
         return "system"
     if isinstance(m, HumanMessage):  # If message is from user
