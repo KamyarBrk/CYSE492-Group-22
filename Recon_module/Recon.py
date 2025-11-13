@@ -1,27 +1,28 @@
-from typing import TypedDict, List, Union, Annotated, Sequence
-from langchain_core.messages import BaseMessage, ToolMessage, SystemMessage
+from typing import TypedDict, List, Union, Annotated, Sequence  #defines dictionaries
+from langchain_core.messages import BaseMessage, ToolMessage, SystemMessage  #defines messages by LANGCHAIN
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain_core.tools import tool
-from langchain_ollama import ChatOllama
+from langchain_core.tools import tool #Decorator to define tools into the LLM
+from langchain_ollama import ChatOllama  #Ollama LLM integration for LangChain
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt import ToolNode 
 from langgraph.graph import StateGraph, START, END
-import subprocess
+import subprocess #runs shell commands
 
 
 # Create the agent state as a dictionary
 
-class AgentState(TypedDict):
-    messages : Annotated[Sequence[BaseMessage], add_messages]
-
-
+class AgentState(TypedDict): #this is the "memory state" of the agent
+    #
+    messages : Annotated[Sequence[BaseMessage], add_messages] # List of messages exchanged so far
+#when new message is added, add_messages function is called to add it to the list
+# Definition of tools such add, sub, mult, commands
 @tool
 def add(a: int, b: int):
     """This is an addition function that adds two files together"""
-    
-    return a + b
+    #adds two integers a n b
+    return a + b #returns the sum of a a n b
 
-@tool
+@tool 
 def sub(a: int, b: int):
     """Subtraction Function"""
     return a - b
@@ -44,17 +45,17 @@ def commands(command: str):
 
 
 
-tools = [add, sub, mult, commands]
+tools = [add, sub, mult, commands] #using these tools when needed
 
 llm = ChatOllama(model="gpt-oss:20b").bind_tools(tools)
 
-
-def recon_call(state:AgentState) -> AgentState:
+#AI is supposed to run recon commands on a windows machine using powershell
+def recon_call(state:AgentState) -> AgentState: #this is the main function of the agent
     system_prompt = SystemMessage(content=
                 "You are an AI assistant that is designed to autonimously carry out the recon phase of a cybersecurity penetration test for a windows computer using powershell commands"
                 )
-    response = llm.invoke([system_prompt] + state["messages"])
-    return {"messages": [response]}
+    response = llm.invoke([system_prompt] + state["messages"]) #feed the system prompt and the messages to the LLM then gets the response back
+    return {"messages": [response]} #returns the agent state with the new message added.
 
 
 def should_continue(state: AgentState):
