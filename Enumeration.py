@@ -8,13 +8,81 @@ from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, START, END
 import subprocess
 import json
+from langchain_chroma import Chroma
 from pathlib import Path
+from IPython.display import display, Markdown,Image
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+import os
 
 #TODO: Make it so that enumeration_memory.json clears after terminating session
 
 # --- Simple file-backed conversation memory settings ---
 MEMORY_FILE = Path("enumeration_memory.json")
 MAX_MEMORY_MESSAGES = 200  # keep only the last N messages to avoid unbounded growth
+
+
+embeddings = OllamaEmbeddings(
+    model="nomic-embed-text"
+)
+
+pdf_path = "sample.pdf"
+
+# Ensure the PDF file exists
+if not os.path.exists(pdf_path):
+    raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+
+pdf_loader = PyPDFLoader(pdf_path) # This loads the PDF
+
+try:
+    pages = pdf_loader.load()
+    print(f"PDF has been loaded and has {len(pages)} pages")
+except Exception as e:
+    print(f"Error loading PDF: {e}")
+    raise
+
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200
+)
+
+
+pages_split = text_splitter.split_documents(pages) 
+
+pages_split = text_splitter.split_documents(pages) # We now apply this to our pages
+
+persist_directory = r"path to\your\persisted\vectorstore"  # Update this path accordingly
+collection_name = "name_of_your_collection"  # Update this accordingly
+
+# If our collection does not exist in the directory, we create using the os command
+if not os.path.exists(persist_directory):
+    os.makedirs(persist_directory)
+
+try:
+    # Here, we actually create the chroma database using our embeddigns model
+    vectorstore = Chroma.from_documents(
+        documents=pages_split,
+        embedding=embeddings,
+        persist_directory=persist_directory,
+        collection_name=collection_name
+    )
+    print(f"Created ChromaDB vector store!")
+    
+except Exception as e:
+    print(f"Error setting up ChromaDB: {str(e)}")
+    raise
+
+
+# Now we create our retriever 
+retriever = vectorstore.as_retriever(
+    search_type="similarity",
+    search_kwargs={"k": 5} # K is the amount of chunks to return
+)
+
+
+
 
 def _msg_role(m: BaseMessage) -> str:
     if isinstance(m, SystemMessage):
@@ -123,6 +191,24 @@ def select_model_func():
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
+def retriever_tool(query: str) -> str:
+    """
+    This tool searches and returns the information from enumeration document.
+    """
+
+    docs = retriever.invoke(query)
+
+    if not docs:
+        return "I found no relevant information in the Stock Market Performance 2024 document."
+    
+    results = []
+    for i, doc in enumerate(docs):
+        results.append(f"Document {i+1}:\n{doc.page_content}")
+    
+    return "\n\n".join(results)
+
+
+
 @tool
 def commands(command: str):
     """Allows the AI commands to run commands"""
@@ -135,9 +221,32 @@ def commands(command: str):
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
-tools = [commands]
+tools = [commands,retriever_tool]
 
+tools_dict = {our_tool.name: our_tool for our_tool in tools}
+# Retriever Agent
+def take_action(state: AgentState) -> AgentState:
+    """Execute tool calls from the LLM's response."""
 
+    tool_calls = state['messages'][-1].tool_calls
+    results = []
+    for t in tool_calls:
+        print(f"Calling Tool: {t['name']} with query: {t['args'].get('query', 'No query provided')}")
+        
+        if not t['name'] in tools_dict: # Checks if a valid tool is present
+            print(f"\nTool: {t['name']} does not exist.")
+            result = "Incorrect Tool Name, Please Retry and Select tool from List of Available tools."
+        
+        else:
+            result = tools_dict[t['name']].invoke(t['args'].get('query', ''))
+            print(f"Result length: {len(str(result))}")
+            
+
+        # Appends the Tool Message
+        results.append(ToolMessage(tool_call_id=t['id'], name=t['name'], content=str(result)))
+
+    print("Tools Execution Complete. Back to the model!")
+    return {'messages': results}
 # ---------------------------------------------------------------------
 # enum_call now uses file-backed memory (this is the enum_call that will be
 # registered in the graph below, BEFORE compilation)
@@ -157,7 +266,9 @@ def enum_call(state: AgentState) -> AgentState:
             incoming.append(HumanMessage(content=str(m)))
 
     system_prompt = SystemMessage(
-        content="You are an AI model that performs the enumeration phase of a penetration test."
+        content="You are an AI model that performs the enumeration phase of a penetration test."\
+        "Use the enumeration documents provided to better complete the enumeration tasks."\
+        "Always cite where you got your information from the enumeration documents"
     )
 
     # Compose final prompt: system -> memory -> incoming conversation
@@ -190,19 +301,22 @@ graph.add_node("enum_agent", enum_call)
 
 tool_node = ToolNode(tools=tools)
 graph.add_node("tools", tool_node)
+graph.add_node("retriever_agent", take_action)
 
-graph.set_entry_point("enum_agent")
+
 
 graph.add_conditional_edges(
     "enum_agent",
     should_continue,
     {
-        "continue": "tools",
+        "continue": "retriever_agent",
         "end": END,
     },
 )
 
-graph.add_edge("tools", "enum_agent")
+graph.add_edge("retriever_agent", "enum_agent")
+
+graph.set_entry_point("enum_agent")
 
 enum = graph.compile()
 
@@ -210,6 +324,21 @@ enum = graph.compile()
 # ---------------------------------------------------------------------
 # Stream printing + interactive loop (single loop; passes HumanMessage)
 # ---------------------------------------------------------------------
+
+def save_graph(filename):
+    png_bytes = enum.get_graph().draw_mermaid_png()
+    # Try to display if running in an environment that supports it
+    try:
+        display(Image(png_bytes))
+    except Exception:
+        pass
+    # Always save to file
+    with open(filename, "wb") as f:
+        f.write(png_bytes)
+    print(f"Graph saved as {filename}")
+
+
+
 def print_stream(stream):
     for s in stream:
         message = s["messages"][-1]
