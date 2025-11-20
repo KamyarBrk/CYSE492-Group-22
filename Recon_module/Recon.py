@@ -7,7 +7,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode 
 from langgraph.graph import StateGraph, START, END
 import subprocess #runs shell commands
-
+import nmap3  #nmap library for python
 
 # Create the agent state as a dictionary
 
