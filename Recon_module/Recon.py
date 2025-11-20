@@ -43,6 +43,22 @@ def commands(command: str):
     )
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
+#new tool
+@tool
+def nmap_tool(target_domain: str): 
+    '''Allows the AI to use nmap processes'''
+    nmap = nmap3.Nmap()
+    return (nmap.nmap_version_detection(target_domain))
+            
+@tool
+def dnsenum_tool(target_domain: str):       
+    '''Allows the AI to use dnsenum processes'''
+    result = subprocess.run(     
+        ["dnsenum", target_domain],
+        capture_output=True,
+        text=True
+    )
+    return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
 tools = [add, sub, mult, commands] #using these tools when needed
