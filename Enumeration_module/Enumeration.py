@@ -1,97 +1,124 @@
-# =============================
-# IMPORTS
-# =============================
-
-# Importing type annotations and helpers from Python's typing module.
-# - TypedDict: used to define a dictionary type with specific key/value types.
-# - List, Iterable, Annotated, Sequence: used for static type checking of lists, iterables, annotated types, etc.
 from typing import TypedDict, List, Iterable, Annotated, Sequence
-
-# Importing message classes from LangChain’s message system.
-# These represent structured messages exchanged between human, AI, and tools.
 from langchain_core.messages import BaseMessage, ToolMessage, SystemMessage
 from langchain_core.messages import HumanMessage, AIMessage
-
-# The @tool decorator marks a Python function as an LLM tool (executable command).
 from langchain_core.tools import tool
-
-# ChatOllama is the LangChain wrapper around the Ollama model runtime.
 from langchain_ollama import ChatOllama
-
-# add_messages is a LangGraph helper function that merges and propagates messages in graph states.
 from langgraph.graph.message import add_messages
-
-# ToolNode is a predefined LangGraph node type that automatically handles tool execution.
 from langgraph.prebuilt import ToolNode
-
-# Import LangGraph’s core graph components for constructing conversational state graphs.
 from langgraph.graph import StateGraph, START, END
-
-# subprocess is used to run system commands and capture their outputs.
 import subprocess
-
-# json for serializing/deserializing the conversation memory to disk.
 import json
-
-# Path from pathlib provides filesystem-safe handling for file paths.
+from langchain_chroma import Chroma
 from pathlib import Path
-
+from IPython.display import display, Markdown,Image
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+import os
 
 # --- Simple file-backed conversation memory settings ---
-MEMORY_FILE = Path("enumeration_memory.json")  # Path to the file used to persist chat memory
-MAX_MEMORY_MESSAGES = 200  # Maximum number of past messages to keep to prevent file bloat
+MEMORY_FILE = Path("enumeration_memory.json")
+MAX_MEMORY_MESSAGES = 200  # keep only the last N messages to avoid unbounded growth
 
-# Helper function to determine message "role" string
+
+embeddings = OllamaEmbeddings(
+    model="nomic-embed-text"
+)
+
+pdf_path = "sample.pdf"
+
+# Ensure the PDF file exists
+if not os.path.exists(pdf_path):
+    raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+
+pdf_loader = PyPDFLoader(pdf_path) # This loads the PDF
+
+try:
+    pages = pdf_loader.load()
+    print(f"PDF has been loaded and has {len(pages)} pages")
+except Exception as e:
+    print(f"Error loading PDF: {e}")
+    raise
+
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200
+)
+
+
+pages_split = text_splitter.split_documents(pages) 
+
+pages_split = text_splitter.split_documents(pages) # We now apply this to our pages
+
+persist_directory = r"path to\your\persisted\vectorstore"  # Update this path accordingly
+collection_name = "name_of_your_collection"  # Update this accordingly
+
+# If our collection does not exist in the directory, we create using the os command
+if not os.path.exists(persist_directory):
+    os.makedirs(persist_directory)
+
+try:
+    # Here, we actually create the chroma database using our embeddigns model
+    vectorstore = Chroma.from_documents(
+        documents=pages_split,
+        embedding=embeddings,
+        persist_directory=persist_directory,
+        collection_name=collection_name
+    )
+    print(f"Created ChromaDB vector store!")
+    
+except Exception as e:
+    print(f"Error setting up ChromaDB: {str(e)}")
+    raise
+
+
+# Now we create our retriever 
+retriever = vectorstore.as_retriever(
+    search_type="similarity",
+    search_kwargs={"k": 5} # K is the amount of chunks to return
+)
+
+
+
+
 def _msg_role(m: BaseMessage) -> str:
-    """
-    Return a string representing the role of a BaseMessage object.
-    """
-    if isinstance(m, SystemMessage):  # If the message is from system
+    if isinstance(m, SystemMessage):
         return "system"
-    if isinstance(m, HumanMessage):  # If message is from user
+    if isinstance(m, HumanMessage):
         return "human"
-    if isinstance(m, AIMessage):  # If message is from AI
+    if isinstance(m, AIMessage):
         return "ai"
-    # fallback for unknown message types (like ToolMessage)
+    # fallback for unknown BaseMessage subclasses (e.g., ToolMessage)
     return m.__class__.__name__.lower()
 
-# Save conversation memory to disk
 def save_memory(messages: Iterable[BaseMessage], memory_file: Path = MEMORY_FILE):
-    """
-    Save a sequence of messages to a JSON file on disk.
-    Each message is represented as a dictionary containing 'role' and 'content'.
-    """
-    out = []  # Container for serializable messages
+    """Serialize messages to disk as a list of {role, content} dicts."""
+    out = []
     for m in messages:
-        # Attempt to get message content directly
+        # BaseMessage subclasses should have .content
         try:
             content = m.content
         except Exception:
-            # Fallback: convert whole message to string if .content missing
+            # Fallback: string-ify if message doesn't expose .content
             content = str(m)
-        out.append({"role": _msg_role(m), "content": content})  # Store role-content pair
-    # Keep only the most recent MAX_MEMORY_MESSAGES
+        out.append({"role": _msg_role(m), "content": content})
+    # Trim to last MAX_MEMORY_MESSAGES to keep the file small
     out = out[-MAX_MEMORY_MESSAGES:]
-    # Write the JSON-formatted list to the file
     memory_file.write_text(json.dumps(out, indent=2), encoding="utf-8")
 
-# Load messages from disk into memory
 def load_memory(memory_file: Path = MEMORY_FILE, max_messages: int = MAX_MEMORY_MESSAGES) -> List[BaseMessage]:
-    """
-    Load messages from the memory file and recreate them as BaseMessage objects.
-    Returns an empty list if the file doesn't exist or is invalid.
-    """
-    if not memory_file.exists():  # If file doesn’t exist, return empty memory
+    """Load messages from disk and return them as BaseMessage objects (most recent last)."""
+    if not memory_file.exists():
         return []
     try:
-        data = json.loads(memory_file.read_text(encoding="utf-8"))  # Load JSON content
+        data = json.loads(memory_file.read_text(encoding="utf-8"))
     except Exception:
-        return []  # On any read/parse error, return empty
-    msgs: List[BaseMessage] = []  # Will hold reconstructed message objects
-    for item in data[-max_messages:]:  # Only take the last 'max_messages' entries
-        role = item.get("role", "human")  # Default to 'human' role if missing
-        content = item.get("content", "") or ""  # Ensure content is non-null string
-        # Reconstruct the appropriate message type based on role
+        return []
+    msgs: List[BaseMessage] = []
+    for item in data[-max_messages:]:
+        role = item.get("role", "human")
+        content = item.get("content", "") or ""
         if role == "system":
             msgs.append(SystemMessage(content=content))
         elif role == "human":
@@ -99,202 +126,237 @@ def load_memory(memory_file: Path = MEMORY_FILE, max_messages: int = MAX_MEMORY_
         elif role == "ai":
             msgs.append(AIMessage(content=content))
         else:
-            # Unknown roles become HumanMessages to remain interpretable
+            # Unknown roles map to HumanMessage so the model can see them
             msgs.append(HumanMessage(content=content))
     return msgs
 
-# Prompt user to select an Ollama model interactively
 def select_model_func():
-    """Interactively let the user select which Ollama model to use."""
-    # Run shell command `ollama list` to get all installed models
+    # Run 'ollama list' to get all installed Ollama models
     proc = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=True)
 
-    # Extract available model names from command output
+    # Extract model names from command output
     installed_models = []
-    for line in proc.stdout.splitlines():  # Iterate through each line of output
-        if line.strip():  # Skip empty lines
-            model_name = line.split()[0]  # Extract first token as model name
-            installed_models.append(model_name)  # Store model name
+    for line in proc.stdout.splitlines():
+        if line.strip():  # skip empty lines
+            # Get the model name (e.g., "gamma:latest" -> "gamma")
+            model_name = line.split()[0]
+            installed_models.append(model_name)
     
-    # Dictionary of numbered model options
+    # Map user input number to actual model names
     model_dict = {
         1: "llama3.2:latest",
         2: "gpt-oss:20b"
     }
     
     while True:
-        # Display menu of available models
+        # Show user a predefined list of models to choose from
         print("\nSelect a model for enumeration phase:")
         print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (most powerful)")
         print('')
         try:
-            # Get user input for model choice
+            # Ask the user for their selection
             model_option = input("Enter model option (number) -> ")
-            if model_option.lower() == "exit":  # Allow exiting selection
+            if model_option.lower() == "exit":
                 print("Goodbye!")
                 exit()
-            model_option = int(model_option)  # Convert to integer
+            model_option = int(model_option)
 
             if not model_option in model_dict:
-                raise  # Trigger exception for invalid number
+                raise
             else:
-                # Ensure selected model is installed locally
+                # Check if selected model is installed
                 while model_dict[model_option] not in installed_models:
                     print("The selected model is not available. Please choose from the list above.")
-                    print(f"Installed Models: {installed_models[1:]}")  # Display installed models
-                    model_option = int(input("Enter model option-> "))  # Prompt again
-                break  # Valid model found
+                    print(f"Installed Models: {installed_models[1:]}")
+                    model_option = int(input("Enter model option-> "))
+                break
         except Exception:
             print("What you entered was invalid. Please enter a valid number.")
     
-    # Determine which model was selected
+    # Assign selected model
     selected_model = None
     for k, v in model_dict.items():
         if model_option == k:
             selected_model = v
             break
 
-    print(f"Selected model: {selected_model}")  # Confirmation output
-    return selected_model  # Return selected model name
+    print(f"Selected model: {selected_model}")
+    return selected_model
 
 # ---------------------------------------------------------------------
-# AgentState: defines the graph’s state type, containing message sequence
+# Your original tool + LLM setup
 # ---------------------------------------------------------------------
 class AgentState(TypedDict):
-    messages: Annotated[Sequence[BaseMessage], add_messages]  # Annotated list of BaseMessages tracked by LangGraph
+    messages: Annotated[Sequence[BaseMessage], add_messages]
 
-# ---------------------------------------------------------------------
-# Define a callable "tool" that can execute shell commands from AI requests
-# ---------------------------------------------------------------------
+def retriever_tool(query: str) -> str:
+    """
+    This tool searches and returns the information from enumeration document.
+    """
+
+    docs = retriever.invoke(query)
+
+    if not docs:
+        return "I found no relevant information in the Stock Market Performance 2024 document."
+    
+    results = []
+    for i, doc in enumerate(docs):
+        results.append(f"Document {i+1}:\n{doc.page_content}")
+    
+    return "\n\n".join(results)
+
+
+
 @tool
 def commands(command: str):
-    """
-    Tool that allows the AI model to run shell commands on the host system.
-    Returns the command's stdout, stderr, and exit code.
-    """
+    """Allows the AI commands to run commands"""
     result = subprocess.run(
-        command,  # The shell command to execute
-        shell=isinstance(command, str),  # Run in shell mode if command is a string
-        capture_output=True,  # Capture stdout and stderr
-        text=True  # Decode output as text instead of bytes
+        command,
+        shell=isinstance(command, str),
+        capture_output=True,
+        text=True
     )
-    # Return a tuple of stdout, stderr, and exit code
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
-# Register available tools in a list
-tools = [commands]
 
+tools = [commands,retriever_tool]
+
+tools_dict = {our_tool.name: our_tool for our_tool in tools}
+# Retriever Agent
+def take_action(state: AgentState) -> AgentState:
+    """Execute tool calls from the LLM's response."""
+
+    tool_calls = state['messages'][-1].tool_calls
+    results = []
+    for t in tool_calls:
+        print(f"Calling Tool: {t['name']} with query: {t['args'].get('query', 'No query provided')}")
+        
+        if not t['name'] in tools_dict: # Checks if a valid tool is present
+            print(f"\nTool: {t['name']} does not exist.")
+            result = "Incorrect Tool Name, Please Retry and Select tool from List of Available tools."
+        
+        else:
+            result = tools_dict[t['name']].invoke(t['args'].get('query', ''))
+            print(f"Result length: {len(str(result))}")
+            
+
+        # Appends the Tool Message
+        results.append(ToolMessage(tool_call_id=t['id'], name=t['name'], content=str(result)))
+
+    print("Tools Execution Complete. Back to the model!")
+    return {'messages': results}
 # ---------------------------------------------------------------------
-# Define the main callable node (enum_call) that interacts with LLM + memory
+# enum_call now uses file-backed memory (this is the enum_call that will be
+# registered in the graph below, BEFORE compilation)
 # ---------------------------------------------------------------------
 def enum_call(state: AgentState) -> AgentState:
-    """
-    Main callable node in the LangGraph. 
-    Loads memory, adds new input messages, calls the LLM, saves the updated memory, 
-    and returns the new state.
-    """
-    # Load previously saved conversation memory
+    # Load persisted memory (chronological, oldest first)
     mem_msgs = load_memory()
 
-    # Normalize input messages from state into BaseMessage objects
+    # Normalize incoming state["messages"] into a list of BaseMessage objects
     incoming: List[BaseMessage] = []
     for m in state["messages"]:
-        if isinstance(m, BaseMessage):  # Already a message object
+        # If the graph/system already gave BaseMessage subclasses, keep them.
+        if isinstance(m, BaseMessage):
             incoming.append(m)
         else:
-            incoming.append(HumanMessage(content=str(m)))  # Coerce non-message input into HumanMessage
+            # If raw string was passed (or other), coerce into HumanMessage
+            incoming.append(HumanMessage(content=str(m)))
 
-    # Define the system-level prompt for this LLM call
     system_prompt = SystemMessage(
-        content="You are an AI model that performs the enumeration phase of a penetration test."
+        content="You are an AI model that performs the enumeration phase of a penetration test."\
+        "Use the enumeration documents provided to better complete the enumeration tasks."\
+        "Always cite where you got your information from the enumeration documents"
     )
 
-    # Compose full input prompt: system message + memory + current input
+    # Compose final prompt: system -> memory -> incoming conversation
     full_prompt = [system_prompt] + mem_msgs + incoming
 
-    # Invoke LLM with full prompt
     response = llm.invoke(full_prompt)
 
-    # Update stored memory with new interaction (adds human + AI messages)
+    # Update stored memory: append the incoming messages + the assistant response
     updated_memory = mem_msgs + incoming + [response]
-    save_memory(updated_memory)  # Persist updated memory to disk
+    save_memory(updated_memory)
 
-    # Return new graph state containing only the model's response
     return {"messages": [response]}
 
+
 # ---------------------------------------------------------------------
-# Define control logic to determine graph continuation
+# Graph creation (this will pick up the enum_call defined above)
 # ---------------------------------------------------------------------
 def should_continue(state: AgentState):
-    """
-    Determines whether the graph should continue (invoke a tool) 
-    or stop (end conversation).
-    """
-    messages = state["messages"]  # Extract message list from current state
-    last_message = messages[-1]  # Get the last message in the sequence
-    # Check if model returned any tool calls
+    messages = state["messages"]
+    last_message = messages[-1]
+    # Tool-calls are only present when the model returned them; check attribute presence
     if not getattr(last_message, "tool_calls", None):
-        return "end"  # No tool call: finish execution
+        return "end"
     else:
-        return "continue"  # Tool call found: continue to tool node
+        return "continue"
 
-# ---------------------------------------------------------------------
-# Create and connect the LangGraph execution graph
-# ---------------------------------------------------------------------
-graph = StateGraph(AgentState)  # Initialize graph with defined state type
-graph.add_node("enum_agent", enum_call)  # Add enumeration node (LLM interaction)
 
-tool_node = ToolNode(tools=tools)  # Node that executes tool calls
-graph.add_node("tools", tool_node)  # Add the tool node to the graph
+graph = StateGraph(AgentState)
+graph.add_node("enum_agent", enum_call)
 
-graph.set_entry_point("enum_agent")  # Define which node runs first
+tool_node = ToolNode(tools=tools)
+graph.add_node("tools", tool_node)
+graph.add_node("retriever_agent", take_action)
 
-# Define conditional flow between nodes based on should_continue()
+
+
 graph.add_conditional_edges(
     "enum_agent",
     should_continue,
     {
-        "continue": "tools",  # If tool call exists, go to tools node
-        "end": END,  # If not, stop execution
+        "continue": "retriever_agent",
+        "end": END,
     },
 )
 
-graph.add_edge("tools", "enum_agent")  # After running a tool, go back to LLM node
+graph.add_edge("retriever_agent", "enum_agent")
 
-enum = graph.compile()  # Compile graph into runnable pipeline
+graph.set_entry_point("enum_agent")
+
+enum = graph.compile()
+
 
 # ---------------------------------------------------------------------
-# Streaming output printer: handles incremental message printing
+# Stream printing + interactive loop (single loop; passes HumanMessage)
 # ---------------------------------------------------------------------
+
+def save_graph(filename):
+    png_bytes = enum.get_graph().draw_mermaid_png()
+    # Try to display if running in an environment that supports it
+    try:
+        display(Image(png_bytes))
+    except Exception:
+        pass
+    # Always save to file
+    with open(filename, "wb") as f:
+        f.write(png_bytes)
+    print(f"Graph saved as {filename}")
+
+
+
 def print_stream(stream):
-    """
-    Iterates over a streaming LangGraph output and prints each message nicely.
-    """
-    for s in stream:  # Iterate over message stream events
-        message = s["messages"][-1]  # Get the most recent message
-        if isinstance(message, tuple):  # If it's a tuple (e.g. command output)
+    for s in stream:
+        message = s["messages"][-1]
+        if isinstance(message, tuple):
             print(message)
         else:
             try:
-                message.pretty_print()  # Use LangChain’s formatted print method
+                message.pretty_print()
             except Exception:
-                print(message)  # Fallback: print raw message
+                # Fallback: print raw
+                print(message)
 
-# ---------------------------------------------------------------------
-# Main entry point for interactive session
-# ---------------------------------------------------------------------
+
 if __name__ == "__main__":
-    # Clear memory file at startup by opening and closing it in write mode
+    # Open the file in write mode ('w') and delete its contents
     open("enumeration_memory.json", 'w').close()
-    # Ask user to select model, then initialize ChatOllama LLM bound with tools
     llm = ChatOllama(model=select_model_func()).bind_tools(tools)
-    # Prompt user for first input
     user_input = input("\nEnter: ")
-    # Continue session until user types "exit"
     while user_input != 'exit':
-        # Wrap user input into a HumanMessage and pass it to the graph
+        # convert raw string input to a HumanMessage and pass as a single-item list
         human_msg = HumanMessage(content=user_input)
-        # Stream responses and print them as they arrive
         _ = print_stream(enum.stream({"messages": [human_msg]}, stream_mode="values"))
-        # Ask for next user input
         user_input = input("\nEnter: ")
