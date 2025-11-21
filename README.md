@@ -4,17 +4,18 @@ The overal system is built out of several different modules to carry out the ste
 
 Rundown of the modules
 
-**Recon**
-Uses common tools in Kali Linux such as nmap to discover information about the environment that is being tested. 
+	**Recon**
+	Uses common tools in Kali Linux such as nmap to discover information about the environment that is being tested. 
 
-**Enumeration**
-Using infromation gathered by the recon module and instructions in PDF files regarding the tools it needs to use, it identifies vulnerabilities in the envrionment. It runs commands via the command-line tool. 
+	**Enumeration**
+	Using infromation gathered by the recon module and instructions in PDF files regarding the tools it needs to use, it identifies
+	vulnerabilities in the envrionment. It runs commands via the command-line tool. 
 
-**Exploitation**
-Attempts to exploit the identified vulnerabilities by the Enumeration module.
+	**Exploitation**
+	Attempts to exploit the identified vulnerabilities by the Enumeration module.
 
-**Post-Exploitation**
-Analyzes the results of the exploitation module and suggests fixes to the environment.
+	**Post-Exploitation**
+	Analyzes the results of the exploitation module and suggests fixes to the environment.
 
 **Local Python Environment Setup Instructions**
 
