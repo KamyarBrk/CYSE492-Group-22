@@ -8,8 +8,8 @@ Rundown of the modules
 	Uses common tools in Kali Linux such as nmap to discover information about the environment that is being tested. 
 
 	**Enumeration**
-	Using infromation gathered by the recon module and instructions in PDF files regarding the tools it needs to use, it identifies vulnerabilities
-	in the envrionment. It runs commands via the command-line tool. 
+	Using infromation gathered by the recon module and instructions in PDF files regarding the tools it needs to use, it identifies
+	vulnerabilities in the envrionment. It runs commands via the command-line tool. 
 
 	**Exploitation**
 	Attempts to exploit the identified vulnerabilities by the Enumeration module.
