@@ -39,7 +39,7 @@ from langchain_chroma import Chroma
 from pathlib import Path
 
 from IPython.display import display, Markdown,Image
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_ollama.embeddings import OllamaEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
@@ -228,6 +228,7 @@ def select_model_func():
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]  # Annotated list of BaseMessages tracked by LangGraph
 
+@tool
 def retriever_tool(query: str) -> str:
     """
     This tool searches and returns the information from enumeration document.
