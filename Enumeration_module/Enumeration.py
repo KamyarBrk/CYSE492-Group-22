@@ -184,13 +184,15 @@ def select_model_func():
     # Dictionary of numbered model options
     model_dict = {
         1: "llama3.2:latest",
-        2: "gpt-oss:20b"
+        2: "gpt-oss:20b",
+        3: "gpt-oss:20b-cloud",
+        4: "gpt-oss:120b-cloud",
     }
     
     while True:
         # Display menu of available models
         print("\nSelect a model for enumeration phase:")
-        print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (most powerful)")
+        print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (most powerful)\n3: gpt-oss:20b-cloud\n4: gpt-oss:120b-cloud (most powerful, largest)")
         print('')
         try:
             # Get user input for model choice
