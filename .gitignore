@@ -1,4 +1,4 @@
 .venv
-enumeration_memory.json
+Enumeration_module/enumeration_memory.json
 practice_stuff/
 path to/your/persisted/vectorstore
