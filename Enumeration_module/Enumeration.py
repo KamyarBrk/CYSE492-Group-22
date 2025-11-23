@@ -184,18 +184,18 @@ def select_model_func():
     # Dictionary of numbered model options
     model_dict = {
         1: "llama3.2:latest",
-        2: "gpt-oss:20b"
+        2: "gpt-oss:20b",
+        3: "gpt-oss:120b-cloud"
     }
     
     while True:
         # Display menu of available models
         print("\nSelect a model for enumeration phase:")
-        print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (most powerful)")
-        print('')
+        print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (more powerful)\n3: gpt-oss:120b-cloud (most powerful)\n")
         try:
             # Get user input for model choice
             model_option = input("Enter model option (number) -> ")
-            if model_option.lower() == "exit":  # Allow exiting selection
+            if model_option.lower() == "exit" or model_option.lower() == "quit":  # Allow exiting selection
                 print("Goodbye!")
                 exit()
             model_option = int(model_option)  # Convert to integer
@@ -393,7 +393,6 @@ def save_graph(filename):
         f.write(png_bytes)
     print(f"Graph saved as {filename}")
 
-
 # ---------------------------------------------------------------------
 # Streaming output printer: handles incremental message printing
 # ---------------------------------------------------------------------
@@ -422,7 +421,7 @@ if __name__ == "__main__":
     # Prompt user for first input
     user_input = input("\nEnter: ")
     # Continue session until user types "exit"
-    while user_input != 'exit':
+    while user_input != 'exit' or user_input != 'quit':
         # Wrap user input into a HumanMessage and pass it to the graph
         human_msg = HumanMessage(content=user_input)
         # Stream responses and print them as they arrive
