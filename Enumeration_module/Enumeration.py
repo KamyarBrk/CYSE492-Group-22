@@ -49,10 +49,10 @@ MEMORY_FILE = Path("enumeration_memory.json")  # Path to the file used to persis
 MAX_MEMORY_MESSAGES = 200  # Maximum number of past messages to keep to prevent file bloat
 
 embeddings = OllamaEmbeddings(
-    model="nomic-embed-text"
+    model="nomic-embed-text"    # use the ollama run nomic-embed-text the first time you run this code
 )
 
-pdf_path = "sample.pdf"
+pdf_path = r"include_path"
 
 # Ensure the PDF file exists
 if not os.path.exists(pdf_path):
@@ -78,7 +78,7 @@ pages_split = text_splitter.split_documents(pages)
 
 pages_split = text_splitter.split_documents(pages) # We now apply this to our pages
 
-persist_directory = r"path to\your\persisted\vectorstore"  # Update this path accordingly
+persist_directory = r"include path"  # Update this path accordingly
 collection_name = "name_of_your_collection"  # Update this accordingly
 
 # If our collection does not exist in the directory, we create using the os command
@@ -192,7 +192,7 @@ def select_model_func():
     while True:
         # Display menu of available models
         print("\nSelect a model for enumeration phase:")
-        print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (most powerful)\n3: gpt-oss:20b-cloud\n4: gpt-oss:120b-cloud (most powerful, largest)")
+        print("1: llama3.2:latest (less powerful)\n2: gpt-oss:20b (more powerful)\n3: gpt-oss:20b-cloud (more powerful)\n4: gpt-oss:120b-cloud (most powerful, largest)")
         print('')
         try:
             # Get user input for model choice
