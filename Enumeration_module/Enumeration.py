@@ -41,7 +41,7 @@ from pathlib import Path
 from IPython.display import display, Markdown,Image
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 import os
 
 # --- Simple file-backed conversation memory settings ---
