@@ -25,7 +25,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
 # Import LangGraph’s core graph components for constructing conversational state graphs.
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, END
 
 # subprocess is used to run system commands and capture their outputs.
 import subprocess
@@ -33,32 +33,31 @@ import subprocess
 # json for serializing/deserializing the conversation memory to disk.
 import json
 
-from langchain_chroma import Chroma
-
 # Path from pathlib provides filesystem-safe handling for file paths.
 from pathlib import Path
 
-from IPython.display import display, Markdown,Image
+from IPython.display import display, Image
+import os
 from langchain_ollama.embeddings import OllamaEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-import os
+from langchain_chroma import Chroma
 
 # --- Simple file-backed conversation memory settings ---
 MEMORY_FILE = Path("recon_memory.json")  # Path to the file used to persist chat memory
 MAX_MEMORY_MESSAGES = 200  # Maximum number of past messages to keep to prevent file bloat
 
 embeddings = OllamaEmbeddings(
-    model="nomic-embed-text"    # use the ollama run nomic-embed-text the first time you run this code
+    model="nomic-embed-text"  # use the ollama run nomic-embed-text the first time you run this code
 )
 
-pdf_path = r"include_path"  # Update this path accordingly
+pdf_path = r"/home/kali/PycharmProjects/new/CYSE492-Group-22/Training_documents/recon_training/nmap_part1.pdf"
 
 # Ensure the PDF file exists
 if not os.path.exists(pdf_path):
     raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
-pdf_loader = PyPDFLoader(pdf_path) # This loads the PDF
+pdf_loader = PyPDFLoader(pdf_path)  # This loads the PDF
 
 try:
     pages = pdf_loader.load()
@@ -67,19 +66,15 @@ except Exception as e:
     print(f"Error loading PDF: {e}")
     raise
 
-
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1000,
     chunk_overlap=200
 )
 
+pages_split = text_splitter.split_documents(pages)
 
-pages_split = text_splitter.split_documents(pages) 
-
-pages_split = text_splitter.split_documents(pages) # We now apply this to our pages
-
-persist_directory = r"include_path"  # Update this path accordingly
-collection_name = "name_of_your_collection"  # Update this accordingly
+persist_directory = r"./vector"  # Update this path accordingly
+collection_name = "vector_storage"  # Update this accordingly
 
 # If our collection does not exist in the directory, we create using the os command
 if not os.path.exists(persist_directory):
@@ -94,13 +89,12 @@ try:
         collection_name=collection_name
     )
     print(f"Created ChromaDB vector store!")
-    
+
 except Exception as e:
     print(f"Error setting up ChromaDB: {str(e)}")
     raise
 
-
-# Now we create our retriever 
+# Now we create our retriever
 retriever = vectorstore.as_retriever(
     search_type="similarity",
     search_kwargs={"k": 5} # K is the amount of chunks to return
@@ -270,7 +264,7 @@ tools = [commands, retriever_tool]
 
 tools_dict = {our_tool.name: our_tool for our_tool in tools}
 # Retriever Agent
-def take_action(state: AgentState) -> AgentState:
+'''def take_action(state: AgentState) -> AgentState:
     """Execute tool calls from the LLM's response."""
 
     tool_calls = state['messages'][-1].tool_calls
@@ -292,7 +286,7 @@ def take_action(state: AgentState) -> AgentState:
 
     print("Tools Execution Complete. Back to the model!")
     return {'messages': results}
-
+'''
 # ---------------------------------------------------------------------
 # recon_call now uses file-backed memory (this is the recon_call that will be
 # registered in the graph below, BEFORE compilation)
@@ -320,7 +314,8 @@ def recon_call(state: AgentState) -> AgentState:
     # Define the system-level prompt for this LLM call
     system_prompt = SystemMessage(
         content="You are an AI model that performs the reconnaissance phase of a penetration test."\
-        "Use the given documents provided to better complete the reconnaissancen tasks."\
+        "Use the given tools provided to better complete the reconnaissance tasks."\
+        "Only use the retriever when all other options have been exhausted it should not be your first reference for output"
         "Always cite where you got your information from the reconnaissance documents"
     )
 
@@ -361,7 +356,7 @@ graph.add_node("recon_agent", recon_call)  # Add reconnaissance node (LLM intera
 
 tool_node = ToolNode(tools=tools)  # Node that executes tool calls
 graph.add_node("tools", tool_node)  # Add the tool node to the graph
-graph.add_node("retriever_agent", take_action)
+graph.add_node("retriever_agent", tool_node)
 
 # Define conditional flow between nodes based on should_continue()
 graph.add_conditional_edges(

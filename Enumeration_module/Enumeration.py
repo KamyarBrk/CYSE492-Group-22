@@ -52,7 +52,7 @@ embeddings = OllamaEmbeddings(
     model="nomic-embed-text"    # use the ollama run nomic-embed-text the first time you run this code
 )
 
-pdf_path = r"include_path"
+pdf_path = r"/home/kali/PycharmProjects/new/CYSE492-Group-22/Training_documents/enum_training/telnet-cheat-sheet.pdf"
 
 # Ensure the PDF file exists
 if not os.path.exists(pdf_path):
@@ -74,12 +74,10 @@ text_splitter = RecursiveCharacterTextSplitter(
 )
 
 
-pages_split = text_splitter.split_documents(pages) 
+pages_split = text_splitter.split_documents(pages)
 
-pages_split = text_splitter.split_documents(pages) # We now apply this to our pages
-
-persist_directory = r"include path"  # Update this path accordingly
-collection_name = "name_of_your_collection"  # Update this accordingly
+persist_directory = r"./vectors"  # Update this path accordingly
+collection_name = "vector_storage"  # Update this accordingly
 
 # If our collection does not exist in the directory, we create using the os command
 if not os.path.exists(persist_directory):
@@ -270,7 +268,7 @@ tools = [commands, retriever_tool]
 
 tools_dict = {our_tool.name: our_tool for our_tool in tools}
 # Retriever Agent
-def take_action(state: AgentState) -> AgentState:
+'''def take_action(state: AgentState) -> AgentState:
     """Execute tool calls from the LLM's response."""
 
     tool_calls = state['messages'][-1].tool_calls
@@ -291,7 +289,7 @@ def take_action(state: AgentState) -> AgentState:
         results.append(ToolMessage(tool_call_id=t['id'], name=t['name'], content=str(result)))
 
     print("Tools Execution Complete. Back to the model!")
-    return {'messages': results}
+    return {'messages': results}'''
 
 # ---------------------------------------------------------------------
 # enum_call now uses file-backed memory (this is the enum_call that will be
@@ -320,7 +318,8 @@ def enum_call(state: AgentState) -> AgentState:
     # Define the system-level prompt for this LLM call
     system_prompt = SystemMessage(
         content="You are an AI model that performs the enumeration phase of a penetration test."\
-        "Use the enumeration documents provided to better complete the enumeration tasks."\
+        #"Use the enumeration documents provided to better complete the enumeration tasks."\
+        "Provide the vulnerability that may be exposed if given a port"
         "Always cite where you got your information from the enumeration documents"
     )
 
@@ -361,7 +360,7 @@ graph.add_node("enum_agent", enum_call)  # Add enumeration node (LLM interaction
 
 tool_node = ToolNode(tools=tools)  # Node that executes tool calls
 graph.add_node("tools", tool_node)  # Add the tool node to the graph
-graph.add_node("retriever_agent", take_action)
+graph.add_node("retriever_agent", tool_node)
 
 # Define conditional flow between nodes based on should_continue()
 graph.add_conditional_edges(
@@ -376,6 +375,7 @@ graph.add_conditional_edges(
 graph.add_edge("retriever_agent", "enum_agent")  # After running a tool, go back to LLM node
 
 graph.set_entry_point("enum_agent")
+
 
 enum = graph.compile()  # Compile graph into runnable pipeline
 

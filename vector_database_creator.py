@@ -1,8 +1,8 @@
 import os
-from langchain.embeddings.ollama import OllamaEmbeddings
-from langchain.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
+from langchain_ollama.embeddings import OllamaEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_chroma import Chroma
 
 
 
@@ -13,7 +13,7 @@ def create_vector_database(persist_directory,collection_name,pdf_path):
         model="nomic-embed-text"    # use the ollama run nomic-embed-text the first time you run this code
     )
 
-    #pdf_path = r"include_path"
+    #pdf_path = r"./Training_documents/recon_training/Nmap-CookBook.pdf"
 
     # Ensure the PDF file exists
     if not os.path.exists(pdf_path):
@@ -39,8 +39,8 @@ def create_vector_database(persist_directory,collection_name,pdf_path):
 
     pages_split = text_splitter.split_documents(pages) # We now apply this to our pages
 
-    #persist_directory = r"include path"  # Update this path accordingly
-    #collection_name = "name_of_your_collection"  # Update this accordingly
+    #persist_directory = r"./vectors"  # Update this path accordingly
+    #collection_name = "vectorstore"  # Update this accordingly
 
     # If our collection does not exist in the directory, we create using the os command
     if not os.path.exists(persist_directory):
@@ -61,3 +61,6 @@ def create_vector_database(persist_directory,collection_name,pdf_path):
         raise
 
     return vectorstore
+
+
+create_vector_database("./vectors","vectorstore", "Training_documents/recon_training/nmap_part2.pdf")
